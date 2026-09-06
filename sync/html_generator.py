@@ -1,0 +1,662 @@
+"""Modern Quantitative Trader Dashboard HTML Generator.
+
+Builds an Obsidian Dark Mode Financial War Room Dashboard with ECharts Capital Flow,
+Actionable Dual-Bucket Categorization, and Interactive 1% Risk Position Sizing Tool.
+"""
+
+import json
+import logging
+from pathlib import Path
+from typing import Any, Dict, Optional
+import pandas as pd
+
+from analysis.trader_insight import trader_engine
+from config.settings import settings
+
+logger = logging.getLogger(__name__)
+
+
+class DashboardHTMLGenerator:
+    """Generates the professional Top-Down Trader War Room HTML Dashboard."""
+
+    def __init__(self, output_dir: Optional[Path] = None, docs_dir: Optional[Path] = None):
+        self.output_dir = output_dir or settings.OUTPUT_DIR
+        self.docs_dir = docs_dir or (settings.PROJECT_DIR / "docs")
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.docs_dir.mkdir(parents=True, exist_ok=True)
+
+    def generate(
+        self,
+        df_screener: pd.DataFrame,
+        as_of_date: Optional[str] = None,
+        total_capital: float = 10_000_000.0,
+    ) -> Path:
+        """產出專業交易員視覺化戰情看板 HTML 檔案。
+
+        Args:
+            df_screener: 篩選結果 DataFrame
+            as_of_date: 運算基準日 (YYYY-MM-DD)
+            total_capital: 總資金部位 (預設 10,000,000 元)
+
+        Returns:
+            Path: 產出的 output/index.html 路徑 (同時複製至 docs/index.html)
+        """
+        # 1. 執行交易員決策分析引擎
+        insight_data = trader_engine.analyze(df_screener, total_capital=total_capital)
+        as_of_date = as_of_date or pd.Timestamp.now().strftime("%Y-%m-%d")
+
+        # 2. 構建純前端嵌入資料 (JSON)
+        data_json = json.dumps(insight_data, ensure_ascii=False)
+
+        # 3. 渲染完整 HTML
+        html_content = self._render_html_template(insight_data, data_json, as_of_date)
+
+        # 4. 輸出至 output/index.html 與 docs/index.html (供 GitHub Pages 部署)
+        output_file = self.output_dir / "index.html"
+        docs_file = self.docs_dir / "index.html"
+
+        output_file.write_text(html_content, encoding="utf-8")
+        docs_file.write_text(html_content, encoding="utf-8")
+
+        # 同時保存 data.json 方便其他 API 或圖表直接讀取
+        (self.output_dir / "trader_insight.json").write_text(data_json, encoding="utf-8")
+        (self.docs_dir / "trader_insight.json").write_text(data_json, encoding="utf-8")
+
+        logger.info("已產出交易員戰情看板: %s 與 %s", output_file, docs_file)
+        return output_file
+
+    def _render_html_template(self, insight: Dict[str, Any], data_json: str, as_of_date: str) -> str:
+        summary = insight["summary"]
+        market_climate = summary["market_climate"]
+        market_action = summary["market_action_guide"]
+
+        return f"""<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>台股大師多頭量化戰情室 | Master Bull Quantitative War Room</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {{
+      darkMode: 'class',
+      theme: {{
+        extend: {{
+          colors: {{
+            obsidian: {{
+              900: '#07090E',
+              850: '#0B0F17',
+              800: '#111726',
+              700: '#1B2438',
+              600: '#283550'
+            }},
+            bull: {{
+              red: '#FF4D4F',
+              green: '#00E676',
+              gold: '#FFB800',
+              cyan: '#00F0FF'
+            }}
+          }},
+          fontFamily: {{
+            mono: ['JetBrains Mono', 'Menlo', 'monospace'],
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif']
+          }}
+        }}
+      }}
+    }}
+  </script>
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <!-- ECharts 5 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+
+  <style>
+    body {{
+      font-family: 'Inter', -apple-system, sans-serif;
+      background-color: #07090E;
+      color: #E2E8F0;
+    }}
+    .font-mono-num {{
+      font-family: 'JetBrains Mono', monospace;
+    }}
+    /* 精緻玻璃擬態與光暈 */
+    .glass-card {{
+      background: rgba(17, 23, 38, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }}
+    .glow-cyan {{
+      box-shadow: 0 0 25px -5px rgba(0, 240, 255, 0.15);
+    }}
+    .glow-red {{
+      box-shadow: 0 0 25px -5px rgba(255, 77, 79, 0.2);
+    }}
+    /* 自訂捲軸 */
+    ::-webkit-scrollbar {{
+      width: 6px;
+      height: 6px;
+    }}
+    ::-webkit-scrollbar-track {{
+      background: #0B0F17;
+    }}
+    ::-webkit-scrollbar-thumb {{
+      background: #283550;
+      border-radius: 4px;
+    }}
+    ::-webkit-scrollbar-thumb:hover {{
+      background: #3B82F6;
+    }}
+  </style>
+</head>
+
+<body class="min-h-screen antialiased text-slate-200 selection:bg-cyan-500 selection:text-black pb-16">
+
+  <!-- ================= 頂部導航列 (Navbar) ================= -->
+  <header class="border-b border-slate-800/80 bg-obsidian-850/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <span class="text-2xl">⚡️</span>
+        <div>
+          <h1 class="font-bold text-lg tracking-wide text-white flex items-center gap-2">
+            台股大師多頭量化戰情室
+            <span class="text-xs px-2 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800 font-mono-num">v2.0 Pro</span>
+          </h1>
+          <p class="text-xs text-slate-400">Minervini Trend Template & Top-Down Trader Insight</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-4">
+        <div class="text-right hidden sm:block">
+          <div class="text-xs text-slate-400">結算基準日</div>
+          <div class="text-sm font-semibold text-cyan-400 font-mono-num">{as_of_date} 盤後</div>
+        </div>
+        <a href="https://github.com/Tungan86/tw-stock-screener" target="_blank" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700 transition flex items-center gap-1.5">
+          <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
+
+    <!-- ================= 區塊 A：市場水溫與戰情總覽 ================= -->
+    <section class="space-y-4">
+      <!-- 水溫警示看板 (Banner) -->
+      <div class="glass-card rounded-2xl p-6 border-l-4 border-l-cyan-400 glow-cyan">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div class="space-y-1">
+            <div class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Top-Down Market Climate</div>
+            <div class="text-2xl sm:text-3xl font-bold text-white flex items-center gap-3">
+              {market_climate}
+            </div>
+            <p class="text-sm text-slate-300 pt-1">
+              <span class="text-cyan-400 font-medium">戰術建議：</span>{market_action}
+            </p>
+          </div>
+          <div class="flex items-center gap-6 bg-obsidian-900/60 px-5 py-3 rounded-xl border border-slate-800">
+            <div>
+              <div class="text-xs text-slate-400">8/8 完美達標</div>
+              <div class="text-2xl font-bold text-bull-green font-mono-num">{summary["passed_8_count"]} <span class="text-xs text-slate-400 font-normal">/ {summary["total_scanned"]}</span></div>
+            </div>
+            <div class="w-px h-10 bg-slate-800"></div>
+            <div>
+              <div class="text-xs text-slate-400">多頭總吸金佔比</div>
+              <div class="text-2xl font-bold text-cyan-400 font-mono-num">{summary["passed_8_turnover_ratio_pct"]}%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 四大數據統計卡片 -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 font-mono-num">
+        <div class="glass-card rounded-xl p-4">
+          <div class="text-xs text-slate-400 mb-1">全市場總成交金額</div>
+          <div class="text-2xl font-bold text-white">{summary["total_turnover_yi"]} <span class="text-xs text-slate-400">億元</span></div>
+          <div class="text-[11px] text-slate-400 mt-1">涵蓋上市櫃普通股</div>
+        </div>
+        <div class="glass-card rounded-xl p-4">
+          <div class="text-xs text-slate-400 mb-1">多頭標的成交金額</div>
+          <div class="text-2xl font-bold text-bull-green">{summary["passed_8_turnover_yi"]} <span class="text-xs text-slate-400">億元</span></div>
+          <div class="text-[11px] text-bull-green/80 mt-1">資金高度集中主流</div>
+        </div>
+        <div class="glass-card rounded-xl p-4 border-l-2 border-l-bull-red">
+          <div class="text-xs text-slate-400 mb-1">🔥 帶量突破攻擊組</div>
+          <div id="card-breakout-cnt" class="text-2xl font-bold text-bull-red">{len(insight["bucket_a_breakout"])} <span class="text-xs text-slate-400">檔</span></div>
+          <div class="text-[11px] text-slate-400 mt-1">距高點&le;5% 且 量能&ge;1.2x</div>
+        </div>
+        <div class="glass-card rounded-xl p-4 border-l-2 border-l-cyan-400">
+          <div class="text-xs text-slate-400 mb-1">🛡️ 波段趨勢核心組</div>
+          <div id="card-core-cnt" class="text-2xl font-bold text-cyan-400">{len(insight["bucket_b_core"])} <span class="text-xs text-slate-400">檔</span></div>
+          <div class="text-[11px] text-slate-400 mt-1">權值標竿與防禦盾</div>
+        </div>
+      </div>
+
+      <!-- 產業資金流向圖表 (ECharts) -->
+      <div class="glass-card rounded-2xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              📊 產業板塊真實資金流向與熱力聚合
+            </h2>
+            <p class="text-xs text-slate-400">左軸：成交金額（億元）長條圖 | 右軸：板塊平均漲跌幅（%）折線</p>
+          </div>
+          <div class="flex items-center gap-3 text-xs">
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-bull-red"></span> 主力攻擊矛</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span> 底層防禦盾</span>
+            <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-slate-500"></span> 中游擴散部隊</span>
+          </div>
+        </div>
+        <div id="industry-chart" class="w-full h-80"></div>
+      </div>
+    </section>
+
+    <!-- ================= 區塊 C：互動式「1% 資本部位計算機」 ================= -->
+    <section class="glass-card rounded-2xl p-6 border border-cyan-500/30 glow-cyan">
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div class="lg:w-1/3 space-y-3">
+          <div class="flex items-center gap-2">
+            <span class="p-1.5 rounded-lg bg-cyan-950 text-cyan-400 text-lg">🧮</span>
+            <h2 class="text-lg font-bold text-white">專業交易員 1% 資本風控計算機</h2>
+          </div>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            嚴格落實避險基金資金管理紀律：每筆交易最大損失上限為總資本的 <span class="text-cyan-400 font-semibold">1.0%</span>，停損點基於 <span class="text-cyan-400 font-semibold">2.0 × ATR</span> 動態波幅計算，精確試算安全買進張數。
+          </p>
+          <div class="space-y-2 pt-1">
+            <label class="text-xs text-slate-300 font-semibold">總投資管理資本 (TWD)</label>
+            <div class="relative">
+              <span class="absolute left-3 top-2.5 text-sm text-slate-500 font-mono-num">NT$</span>
+              <input type="number" id="input-capital" value="10000000" step="500000" class="w-full pl-12 pr-4 py-2 rounded-xl bg-obsidian-900 border border-slate-700 text-white font-mono-num text-sm focus:outline-none focus:border-cyan-400 transition">
+            </div>
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs text-slate-300 font-semibold">選擇試算標的</label>
+            <select id="select-stock" class="w-full px-3 py-2 rounded-xl bg-obsidian-900 border border-slate-700 text-white font-mono-num text-sm focus:outline-none focus:border-cyan-400 transition">
+              <!-- JS 自動動態載入 -->
+            </select>
+          </div>
+        </div>
+
+        <!-- 試算結果輸出卡片 (Live Result Card) -->
+        <div class="lg:w-2/3 grid grid-cols-2 sm:grid-cols-3 gap-3 font-mono-num">
+          <div class="bg-obsidian-900/80 p-4 rounded-xl border border-slate-800">
+            <div class="text-xs text-slate-400 mb-1">當前收盤價</div>
+            <div id="res-price" class="text-xl font-bold text-white">--</div>
+            <div id="res-atr" class="text-[11px] text-slate-400 mt-1">ATR(14): --</div>
+          </div>
+          <div class="bg-obsidian-900/80 p-4 rounded-xl border border-bull-red/30">
+            <div class="text-xs text-slate-400 mb-1">建議防守停損價 (2x ATR)</div>
+            <div id="res-stop-price" class="text-xl font-bold text-bull-red">--</div>
+            <div id="res-stop-pct" class="text-[11px] text-bull-red mt-1">停損幅度: --%</div>
+          </div>
+          <div class="bg-obsidian-900/80 p-4 rounded-xl border border-cyan-500/40">
+            <div class="text-xs text-cyan-400 font-semibold mb-1">1% 風險最大買進張數</div>
+            <div id="res-shares" class="text-2xl font-bold text-cyan-400">-- 張</div>
+            <div id="res-odd-shares" class="text-[11px] text-cyan-300/80 mt-1">零股相當: -- 股</div>
+          </div>
+          <div class="bg-obsidian-900/80 p-4 rounded-xl border border-slate-800">
+            <div class="text-xs text-slate-400 mb-1">單筆最大可承擔虧損</div>
+            <div id="res-max-loss" class="text-lg font-bold text-slate-200">-- 元</div>
+            <div class="text-[11px] text-slate-400 mt-1">嚴格恪守 1.0%</div>
+          </div>
+          <div class="bg-obsidian-900/80 p-4 rounded-xl border border-slate-800">
+            <div class="text-xs text-slate-400 mb-1">預估動用資金</div>
+            <div id="res-capital-alloc" class="text-lg font-bold text-white">-- 元</div>
+            <div id="res-capital-ratio" class="text-[11px] text-slate-300 mt-1">資金佔比: --%</div>
+          </div>
+          <div class="bg-obsidian-900/80 p-4 rounded-xl border border-slate-800 flex flex-col justify-center">
+            <div class="text-xs text-slate-400 mb-1">風控警語與建議</div>
+            <div id="res-risk-status" class="text-xs font-sans text-bull-green font-medium">配置比例安全健康</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 區塊 B：執行交易專屬分頁 ================= -->
+    <section class="space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-3">
+        <!-- Tab 切換按鈕 -->
+        <div class="flex items-center space-x-2">
+          <button id="tab-breakout" onclick="switchTab('breakout')" class="px-4 py-2 rounded-xl text-sm font-semibold transition bg-cyan-500 text-black shadow-lg shadow-cyan-500/20">
+            🔥 帶量突破攻擊組 (<span id="tab-breakout-num">{len(insight["bucket_a_breakout"])}</span>)
+          </button>
+          <button id="tab-core" onclick="switchTab('core')" class="px-4 py-2 rounded-xl text-sm font-semibold transition bg-obsidian-800 text-slate-300 hover:text-white border border-slate-700">
+            🛡️ 波段趨勢核心組 (<span id="tab-core-num">{len(insight["bucket_b_core"])}</span>)
+          </button>
+        </div>
+
+        <!-- 搜尋列與快速過濾 -->
+        <div class="flex items-center gap-2">
+          <input type="text" id="search-input" onkeyup="filterTable()" placeholder="搜尋代碼、名稱或產業..." class="px-3 py-1.5 rounded-xl bg-obsidian-850 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-400 w-48 sm:w-64 transition">
+        </div>
+      </div>
+
+      <!-- 標的清單表格 -->
+      <div class="glass-card rounded-2xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm font-mono-num">
+            <thead class="bg-obsidian-900/90 text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800 select-none">
+              <tr>
+                <th class="py-3.5 px-4 text-center">代碼</th>
+                <th class="py-3.5 px-4 font-sans">名稱</th>
+                <th class="py-3.5 px-4 font-sans">產業</th>
+                <th class="py-3.5 px-4 text-right">收盤價</th>
+                <th class="py-3.5 px-4 text-right">漲跌幅</th>
+                <th class="py-3.5 px-4 text-right">成交量(張)</th>
+                <th class="py-3.5 px-4 text-right">量能倍數</th>
+                <th class="py-3.5 px-4 text-right">距52W高</th>
+                <th class="py-3.5 px-4 text-right">RSI(14)</th>
+                <th class="py-3.5 px-4 text-right text-bull-red font-semibold">建議停損</th>
+                <th class="py-3.5 px-4 text-right text-cyan-400 font-semibold">1%買進張數</th>
+                <th class="py-3.5 px-4 font-sans">操盤評語 / 行動標籤</th>
+                <th class="py-3.5 px-4 text-center font-sans">操作</th>
+              </tr>
+            </thead>
+            <tbody id="stocks-tbody" class="divide-y divide-slate-800/60 text-xs">
+              <!-- JS 動態生成資料列 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 注入分析資料至前端 JS -->
+  <script>
+    const insightData = {data_json};
+    let currentTab = 'breakout';
+
+    // 初始化頁面
+    document.addEventListener('DOMContentLoaded', () => {{
+      initIndustryChart();
+      initStockSelector();
+      renderTable();
+      updateCalculator();
+
+      // 監聽總資本變更
+      document.getElementById('input-capital').addEventListener('input', () => {{
+        updateCalculator();
+      }});
+      document.getElementById('select-stock').addEventListener('change', () => {{
+        updateCalculator();
+      }});
+    }});
+
+    // 1. 初始化產業資金流向圖 (ECharts)
+    function initIndustryChart() {{
+      const chartDom = document.getElementById('industry-chart');
+      if (!chartDom) return;
+      const myChart = echarts.init(chartDom);
+
+      const industries = insightData.industry_capital_flow.slice(0, 10);
+      const xData = industries.map(item => item.industry);
+      const turnoverData = industries.map(item => item.turnover_yi);
+      const pctChgData = industries.map(item => item.avg_pct_change);
+
+      const option = {{
+        backgroundColor: 'transparent',
+        tooltip: {{
+          trigger: 'axis',
+          axisPointer: {{ type: 'cross' }},
+          backgroundColor: '#0B0F17',
+          borderColor: '#1B2438',
+          textStyle: {{ color: '#E2E8F0', fontSize: 12 }},
+          formatter: function(params) {{
+            const ind = industries[params[0].dataIndex];
+            return `
+              <div class="font-bold border-b border-slate-700 pb-1 mb-1">${{ind.industry}} <span class="text-xs px-1.5 py-0.5 rounded bg-slate-800 text-cyan-400">${{ind.role}}</span></div>
+              <div class="text-slate-400">成交金額: <span class="font-bold text-white">${{ind.turnover_yi}} 億元</span> (${{ind.turnover_ratio_pct}}%)</div>
+              <div class="text-slate-400">平均漲幅: <span class="font-bold text-bull-red">${{ind.avg_pct_change > 0 ? '+' : ''}}${{ind.avg_pct_change}}%</span></div>
+              <div class="text-slate-400">8/8 達標: <span class="font-bold text-bull-green">${{ind.passed_8_count}} 檔</span></div>
+              <div class="text-[11px] text-slate-500 mt-1">${{ind.role_desc}}</div>
+            `;
+          }}
+        }},
+        grid: {{
+          left: '3%',
+          right: '4%',
+          bottom: '3%',
+          top: '15%',
+          containLabel: true
+        }},
+        xAxis: {{
+          type: 'category',
+          data: xData,
+          axisLine: {{ lineStyle: {{ color: '#283550' }} }},
+          axisLabel: {{ color: '#94A3B8', fontSize: 11, interval: 0, rotate: 20 }}
+        }},
+        yAxis: [
+          {{
+            type: 'value',
+            name: '成交額 (億元)',
+            nameTextStyle: {{ color: '#94A3B8', fontSize: 11 }},
+            splitLine: {{ lineStyle: {{ color: 'rgba(255,255,255,0.05)' }} }},
+            axisLabel: {{ color: '#94A3B8', fontSize: 11 }}
+          }},
+          {{
+            type: 'value',
+            name: '平均漲幅 (%)',
+            nameTextStyle: {{ color: '#94A3B8', fontSize: 11 }},
+            splitLine: {{ show: false }},
+            axisLabel: {{
+              color: '#94A3B8',
+              fontSize: 11,
+              formatter: '{{value}} %'
+            }}
+          }}
+        ],
+        series: [
+          {{
+            name: '成交金額 (億)',
+            type: 'bar',
+            data: turnoverData,
+            barWidth: '40%',
+            itemStyle: {{
+              borderRadius: [4, 4, 0, 0],
+              color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                {{ offset: 0, color: '#00F0FF' }},
+                {{ offset: 1, color: '#0051FF' }}
+              ])
+            }}
+          }},
+          {{
+            name: '平均漲跌幅 (%)',
+            type: 'line',
+            yAxisIndex: 1,
+            data: pctChgData,
+            symbolSize: 8,
+            itemStyle: {{ color: '#FF4D4F' }},
+            lineStyle: {{ width: 2, color: '#FF4D4F' }}
+          }}
+        ]
+      }};
+
+      myChart.setOption(option);
+      window.addEventListener('resize', () => myChart.resize());
+    }}
+
+    // 2. 初始化計算機下拉選單
+    function initStockSelector() {{
+      const select = document.getElementById('select-stock');
+      select.innerHTML = '';
+
+      const allStocks = [...insightData.bucket_a_breakout, ...insightData.bucket_b_core];
+      // 去重
+      const seen = new Set();
+      const uniqueStocks = [];
+      for (const s of allStocks) {{
+        if (!seen.has(s.code)) {{
+          seen.add(s.code);
+          uniqueStocks.push(s);
+        }}
+      }}
+
+      uniqueStocks.forEach(stock => {{
+        const opt = document.createElement('option');
+        opt.value = stock.code;
+        opt.textContent = `${{stock.code}} ${{stock.name}} (${{stock.industry}}) - NT$${{stock.close}}`;
+        select.appendChild(opt);
+      }});
+    }}
+
+    // 3. 切換 Tab 分頁
+    function switchTab(tab) {{
+      currentTab = tab;
+      const tabBreakout = document.getElementById('tab-breakout');
+      const tabCore = document.getElementById('tab-core');
+
+      if (tab === 'breakout') {{
+        tabBreakout.className = 'px-4 py-2 rounded-xl text-sm font-semibold transition bg-cyan-500 text-black shadow-lg shadow-cyan-500/20';
+        tabCore.className = 'px-4 py-2 rounded-xl text-sm font-semibold transition bg-obsidian-800 text-slate-300 hover:text-white border border-slate-700';
+      }} else {{
+        tabCore.className = 'px-4 py-2 rounded-xl text-sm font-semibold transition bg-cyan-500 text-black shadow-lg shadow-cyan-500/20';
+        tabBreakout.className = 'px-4 py-2 rounded-xl text-sm font-semibold transition bg-obsidian-800 text-slate-300 hover:text-white border border-slate-700';
+      }}
+      renderTable();
+    }}
+
+    // 4. 渲染股票清單表格
+    function renderTable() {{
+      const tbody = document.getElementById('stocks-tbody');
+      tbody.innerHTML = '';
+
+      const dataList = currentTab === 'breakout' ? insightData.bucket_a_breakout : insightData.bucket_b_core;
+
+      if (!dataList || dataList.length === 0) {{
+        tbody.innerHTML = `<tr><td colspan="13" class="py-8 text-center text-slate-500 font-sans">此群組本日無符合標的</td></tr>`;
+        return;
+      }}
+
+      dataList.forEach(stock => {{
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-obsidian-700/40 transition border-b border-slate-800/40';
+
+        const chgColor = stock.pct_change > 0 ? 'text-bull-red' : (stock.pct_change < 0 ? 'text-bull-green' : 'text-slate-300');
+        const chgSign = stock.pct_change > 0 ? '+' : '';
+
+        tr.innerHTML = `
+          <td class="py-3 px-4 text-center font-bold text-cyan-400">${{stock.code}}</td>
+          <td class="py-3 px-4 font-sans font-semibold text-white whitespace-nowrap">${{stock.name}}</td>
+          <td class="py-3 px-4 font-sans text-slate-400 text-xs">${{stock.industry}}</td>
+          <td class="py-3 px-4 text-right font-bold text-white font-mono-num">${{stock.close.toFixed(2)}}</td>
+          <td class="py-3 px-4 text-right font-bold ${{chgColor}} font-mono-num">${{chgSign}}${{stock.pct_change.toFixed(2)}}%</td>
+          <td class="py-3 px-4 text-right text-slate-300 font-mono-num">${{Math.round(stock.volume_lots).toLocaleString()}}</td>
+          <td class="py-3 px-4 text-right font-mono-num ${{stock.vol_ratio >= 1.5 ? 'text-bull-gold font-bold' : 'text-slate-400'}}">${{stock.vol_ratio.toFixed(1)}}x</td>
+          <td class="py-3 px-4 text-right font-mono-num text-slate-300">${{stock.pct_below_52w_high.toFixed(1)}}%</td>
+          <td class="py-3 px-4 text-right font-mono-num ${{stock.rsi_14 >= 75 ? 'text-bull-gold font-bold' : 'text-slate-400'}}">${{stock.rsi_14.toFixed(1)}}</td>
+          <td class="py-3 px-4 text-right font-mono-num font-semibold text-bull-red">
+            NT$${{stock.stop_price.toFixed(2)}}
+            <span class="text-[10px] text-slate-500 block">(-${{stock.stop_pct}}%)</span>
+          </td>
+          <td class="py-3 px-4 text-right font-mono-num font-bold text-cyan-400 text-sm">
+            ${{stock.max_shares_lots}} <span class="text-xs font-normal text-slate-500">張</span>
+          </td>
+          <td class="py-3 px-4 font-sans text-xs">
+            <span class="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-cyan-300 border border-slate-700 mr-1.5">${{stock.action_tag || '多頭'}}</span>
+            <span class="text-slate-400">${{stock.trader_note || ''}}</span>
+          </td>
+          <td class="py-3 px-4 text-center whitespace-nowrap">
+            <button onclick="selectStockAndCalc('${{stock.code}}')" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-cyan-500 hover:text-black text-slate-300 text-[11px] font-sans transition mr-1">
+              試算
+            </button>
+            <a href="https://www.tradingview.com/chart/?symbol=${{stock.market === 'TPEx' ? 'TPEX' : 'TWSE'}}:${{stock.code}}" target="_blank" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 text-[11px] font-sans transition">
+              線圖
+            </a>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      }});
+    }}
+
+    // 5. 快速點選帶入計算機
+    function selectStockAndCalc(code) {{
+      const select = document.getElementById('select-stock');
+      select.value = code;
+      updateCalculator();
+      window.scrollTo({{ top: 380, behavior: 'smooth' }});
+    }}
+
+    // 6. 動態更新部位試算機邏輯 (Position Sizing Live Calculator)
+    function updateCalculator() {{
+      const totalCapital = parseFloat(document.getElementById('input-capital').value) || 10000000;
+      const selectedCode = document.getElementById('select-stock').value;
+
+      const allStocks = [...insightData.bucket_a_breakout, ...insightData.bucket_b_core];
+      const stock = allStocks.find(s => s.code === selectedCode) || allStocks[0];
+      if (!stock) return;
+
+      const close = stock.close;
+      const atr = stock.atr_14 || 1.0;
+      const stopDist = 2.0 * atr;
+      const stopPrice = Math.max(0.1, close - stopDist);
+      const stopPct = ((close - stopPrice) / close) * 100.0;
+
+      // 1% 最大承擔虧損 (新台幣)
+      const maxRiskAmount = totalCapital * 0.01;
+      const lossPerLot = (close - stopPrice) * 1000.0;
+
+      let maxSharesLots = 0;
+      let oddShares = 0;
+
+      if (lossPerLot > 0) {{
+        maxSharesLots = Math.floor(maxRiskAmount / lossPerLot);
+        // 若連 1 整張都無法承擔（如超高價股），計算零股股數
+        const lossPerShare = close - stopPrice;
+        oddShares = Math.floor(maxRiskAmount / lossPerShare);
+      }}
+
+      const allocatedCapital = maxSharesLots * 1000 * close;
+      const capitalRatio = (allocatedCapital / totalCapital) * 100.0;
+
+      // 渲染 UI
+      document.getElementById('res-price').textContent = `NT$${{close.toFixed(2)}}`;
+      document.getElementById('res-atr').textContent = `ATR(14): ${{atr.toFixed(2)}} 元`;
+      document.getElementById('res-stop-price').textContent = `NT$${{stopPrice.toFixed(2)}}`;
+      document.getElementById('res-stop-pct').textContent = `停損幅度: -${{stopPct.toFixed(2)}}%`;
+
+      document.getElementById('res-shares').textContent = `${{maxSharesLots.toLocaleString()}} 張`;
+      document.getElementById('res-odd-shares').textContent = maxSharesLots === 0 ? `高價股建議零股: ${{oddShares.toLocaleString()}} 股` : `約 ${{ (maxSharesLots * 1000).toLocaleString() }} 股`;
+      document.getElementById('res-max-loss').textContent = `NT$${{Math.round(maxRiskAmount).toLocaleString()}}`;
+      document.getElementById('res-capital-alloc').textContent = `NT$${{Math.round(allocatedCapital).toLocaleString()}}`;
+      document.getElementById('res-capital-ratio').textContent = `資金佔比: ${{capitalRatio.toFixed(1)}}%`;
+
+      const riskStatusEl = document.getElementById('res-risk-status');
+      if (maxSharesLots === 0) {{
+        riskStatusEl.textContent = '⚠️ 單張風險已逾 1%，請改採零股建倉';
+        riskStatusEl.className = 'text-xs font-sans text-bull-gold font-medium';
+      }} else if (capitalRatio > 35.0) {{
+        riskStatusEl.textContent = '⚠️ 部位佔比逾 35%，注意單一標的過度集中';
+        riskStatusEl.className = 'text-xs font-sans text-bull-gold font-medium';
+      }} else {{
+        riskStatusEl.textContent = '✅ 嚴格恪守 1% 風險，部位規模安全健康';
+        riskStatusEl.className = 'text-xs font-sans text-bull-green font-medium';
+      }}
+    }}
+
+    // 7. 關鍵字即時搜尋
+    function filterTable() {{
+      const query = document.getElementById('search-input').value.toLowerCase().trim();
+      const rows = document.querySelectorAll('#stocks-tbody tr');
+
+      rows.forEach(row => {{
+        const text = row.textContent.toLowerCase();
+        if (text.includes(query)) {{
+          row.style.display = '';
+        }} else {{
+          row.style.display = 'none';
+        }}
+      }});
+    }}
+  </script>
+</body>
+</html>
+"""
+
+
+html_generator = DashboardHTMLGenerator()

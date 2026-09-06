@@ -19,6 +19,7 @@ from data.fetcher import data_fetcher
 from data.tw_market import market_registry
 from strategy.master_bull import master_bull_strategy
 from sync.drive_archiver import drive_archiver
+from sync.html_generator import html_generator
 from sync.sheets_uploader import sheets_uploader
 
 console = Console()
@@ -261,6 +262,13 @@ def run_pipeline(args: argparse.Namespace) -> int:
         console.print(f"💾 本地 Parquet 封存完成: [cyan]{parquet_file}[/cyan]")
         if drive_id:
             console.print(f"☁️ Google Drive 歸檔完成，檔案 ID: [green]{drive_id}[/green]")
+
+    # 8. 交易員決策分析與 HTML 戰情看板產出
+    if not results_df.empty:
+        console.print("\n[bold]7. 運算交易員決策分析並產出視覺化戰情看板...[/bold]")
+        html_file = html_generator.generate(results_df, as_of_date=target_date)
+        console.print(f"📊 已生成交易員視覺化戰情看板: [cyan]{html_file}[/cyan]")
+        console.print(f"🌐 GitHub Pages 部署檔就緒: [cyan]{settings.PROJECT_DIR / 'docs' / 'index.html'}[/cyan]")
 
     console.print("\n[bold green]🎉 全流程執行完畢！[/bold green]\n")
     return 0

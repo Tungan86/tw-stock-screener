@@ -12,6 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    permissions:
+      contents: write
+
     steps:
       - name: 1. 檢出專案代碼 (Checkout repository)
         uses: actions/checkout@v4
@@ -47,7 +50,7 @@ jobs:
           echo "MA200_TREND_LOOKBACK_DAYS=20" >> .env
           echo "LOG_LEVEL=INFO" >> .env
 
-      - name: 5. 執行台股大師多頭量化選股 (Run Stock Screener)
+      - name: 5. 執行台股大師多頭量化選股與戰情看板產出 (Run Stock Screener & Dashboard)
         run: |
           python main.py
 
@@ -58,5 +61,14 @@ jobs:
           name: daily-screener-output-${{ github.run_id }}
           path: |
             output/*.csv
+            output/index.html
             data/archive/*.parquet
           retention-days: 14
+
+      - name: 7. 自動提交並推送最新戰情看板至 GitHub Pages (Deploy Docs)
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/
+          git commit -m "chore(docs): 自動更新每日交易員戰情看板 [skip ci]" || echo "No changes to commit"
+          git push origin main
