@@ -11,9 +11,45 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 from analysis.trader_insight import trader_engine
+from analysis.ai_analyst import market_analyst
 from config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _markdown_to_html(md_text: str) -> str:
+    """極輕量 Markdown 轉換為 Tailwind HTML 語法。"""
+    import re
+    if not md_text:
+        return ""
+    lines = md_text.strip().split("\n")
+    html_lines = []
+    in_list = False
+    for line in lines:
+        line_s = line.strip()
+        if not line_s:
+            if in_list:
+                html_lines.append("</ul>")
+                in_list = False
+            html_lines.append("<div class='h-2'></div>")
+            continue
+        # 支援無序與有序清單 (*, -, •, 1.)
+        if line_s.startswith(("* ", "- ", "• ")) or re.match(r"^\d+\.\s+", line_s):
+            if not in_list:
+                html_lines.append("<ul class='space-y-1.5 list-disc list-inside text-slate-300 text-xs sm:text-sm leading-relaxed'>")
+                in_list = True
+            content = re.sub(r"^(?:\*|-|•|\d+\.)\s+", "", line_s)
+            content = re.sub(r"\*\*([^*]+)\*\*", r"<strong class='text-white font-semibold'>\1</strong>", content)
+            html_lines.append(f"<li>{content}</li>")
+        else:
+            if in_list:
+                html_lines.append("</ul>")
+                in_list = False
+            content = re.sub(r"\*\*([^*]+)\*\*", r"<strong class='text-white font-semibold'>\1</strong>", line_s)
+            html_lines.append(f"<p class='text-xs sm:text-sm text-slate-300 leading-relaxed'>{content}</p>")
+    if in_list:
+        html_lines.append("</ul>")
+    return "\n".join(html_lines)
 
 
 class DashboardHTMLGenerator:
@@ -45,11 +81,15 @@ class DashboardHTMLGenerator:
         insight_data = trader_engine.analyze(df_screener, total_capital=total_capital)
         as_of_date = as_of_date or pd.Timestamp.now().strftime("%Y-%m-%d")
 
-        # 2. 構建純前端嵌入資料 (JSON)
+        # 2. 呼叫 Gemini AI 產出避險基金 CIO 盤後深度觀點
+        ai_briefing = market_analyst.generate_executive_briefing(insight_data)
+        insight_data["ai_briefing"] = ai_briefing
+
+        # 3. 構建純前端嵌入資料 (JSON)
         data_json = json.dumps(insight_data, ensure_ascii=False)
 
-        # 3. 渲染完整 HTML
-        html_content = self._render_html_template(insight_data, data_json, as_of_date)
+        # 4. 渲染完整 HTML
+        html_content = self._render_html_template(insight_data, data_json, as_of_date, ai_briefing)
 
         # 4. 輸出至 output/index.html 與 docs/index.html (供 GitHub Pages 部署)
         output_file = self.output_dir / "index.html"
@@ -65,10 +105,95 @@ class DashboardHTMLGenerator:
         logger.info("已產出交易員戰情看板: %s 與 %s", output_file, docs_file)
         return output_file
 
-    def _render_html_template(self, insight: Dict[str, Any], data_json: str, as_of_date: str) -> str:
+    def _render_html_template(
+        self,
+        insight: Dict[str, Any],
+        data_json: str,
+        as_of_date: str,
+        ai_briefing: Optional[Dict[str, Any]] = None,
+    ) -> str:
         summary = insight["summary"]
         market_climate = summary["market_climate"]
         market_action = summary["market_action_guide"]
+
+        # 整理 AI 盤後深度觀點內容
+        ai_card_html = ""
+        if ai_briefing:
+            model_name = ai_briefing.get("model_used", "Gemini Pro")
+            sentiment = ai_briefing.get("market_sentiment", "量化盤後分析")
+            sections = ai_briefing.get("sections", {})
+            sec_1_html = _markdown_to_html(sections.get("regime_and_flow", ""))
+            sec_2_html = _markdown_to_html(sections.get("breakout_highlights", ""))
+            sec_3_html = _markdown_to_html(sections.get("risk_and_execution", ""))
+
+            badge_color = "border-emerald-500/40 text-emerald-400 bg-emerald-950/40" if "強攻" in sentiment else "border-amber-500/40 text-amber-400 bg-amber-950/40"
+
+            ai_card_html = f"""
+    <!-- ================= 區塊 0：AI 投資總監・每日量化深度複盤 (Powered by Gemini) ================= -->
+    <section class="glass-card rounded-2xl p-6 border border-indigo-500/30 bg-gradient-to-br from-obsidian-850/95 via-indigo-950/25 to-obsidian-900/90 relative overflow-hidden shadow-2xl">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800/80">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center text-xl shadow-lg shadow-indigo-500/20">
+            🤖
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-lg font-bold text-white tracking-wide">
+                AI 投資總監・盤後深度複盤與行動綱領
+              </h2>
+              <span class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs border border-indigo-500/40 bg-indigo-950/60 text-indigo-300 font-mono-num">
+                <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                {model_name}
+              </span>
+            </div>
+            <p class="text-xs text-slate-400">避險基金 Top-Down 多空位階評判、資金流向聚合與動態部位風控</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="px-3 py-1 rounded-lg text-xs font-semibold border {badge_color} flex items-center gap-1.5">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-current"></span>
+            </span>
+            {sentiment}
+          </span>
+        </div>
+      </div>
+
+      <!-- 三欄式操盤手報告 -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 pt-5">
+        <!-- 1. 資金結構與多空溫度計 -->
+        <div class="rounded-xl p-4 bg-obsidian-900/80 border border-slate-800/90 space-y-2 hover:border-slate-700 transition">
+          <div class="flex items-center gap-2 text-sm font-bold text-cyan-400 border-b border-slate-800 pb-2">
+            <span>🌡️</span> 1. 資金結構與多空溫度計
+          </div>
+          <div class="pt-1">
+            {sec_1_html}
+          </div>
+        </div>
+
+        <!-- 2. 帶量突破焦點與族群亮點 -->
+        <div class="rounded-xl p-4 bg-obsidian-900/80 border border-slate-800/90 space-y-2 hover:border-slate-700 transition">
+          <div class="flex items-center gap-2 text-sm font-bold text-bull-red border-b border-slate-800 pb-2">
+            <span>🔥</span> 2. 帶量突破亮點與族群焦點
+          </div>
+          <div class="pt-1">
+            {sec_2_html}
+          </div>
+        </div>
+
+        <!-- 3. 風控方針與部位管理行動綱領 -->
+        <div class="rounded-xl p-4 bg-obsidian-900/80 border border-slate-800/90 space-y-2 hover:border-slate-700 transition">
+          <div class="flex items-center gap-2 text-sm font-bold text-bull-gold border-b border-slate-800 pb-2">
+            <span>🛡️</span> 3. 部位管理與風控行動綱領
+          </div>
+          <div class="pt-1">
+            {sec_3_html}
+          </div>
+        </div>
+      </div>
+    </section>
+"""
 
         return f"""<!DOCTYPE html>
 <html lang="zh-TW" class="dark">
@@ -184,6 +309,8 @@ class DashboardHTMLGenerator:
   </header>
 
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-8">
+
+    {ai_card_html}
 
     <!-- ================= 區塊 A：市場水溫與戰情總覽 ================= -->
     <section class="space-y-4">

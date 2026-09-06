@@ -34,6 +34,7 @@ jobs:
         env:
           SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           # 寫入 Google 服務帳號金鑰
           echo "$SERVICE_ACCOUNT_JSON" > service_account.json
@@ -42,6 +43,8 @@ jobs:
           echo "SERVICE_ACCOUNT_FILE=service_account.json" > .env
           echo "GOOGLE_SHEET_ID=$GOOGLE_SHEET_ID" >> .env
           echo "GOOGLE_SHEET_TITLE=台股大師多頭選股監控表" >> .env
+          echo "GEMINI_API_KEY=$GEMINI_API_KEY" >> .env
+          echo "GEMINI_MODEL=gemini-3.1-flash-lite" >> .env
           echo "MIN_PRICE=10.0" >> .env
           echo "MIN_VOLUME_SHARES=500000" >> .env
           echo "MIN_RSI=50.0" >> .env

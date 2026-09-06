@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     GOOGLE_SHEET_TITLE: str = Field(default="台股大師多頭選股監控表", description="若無 Sheet ID 則依名稱建立/讀取")
     GOOGLE_DRIVE_FOLDER_ID: Optional[str] = Field(default=None, description="Google Drive 歸檔資料夾 ID")
 
+    # Gemini AI 盤後分析設定
+    GEMINI_API_KEY: Optional[str] = Field(default=None, description="Google Gemini API Key (支援 AI Studio 免費金鑰)")
+    GEMINI_MODEL: str = Field(default="gemini-3.1-flash-lite", description="Gemini 分析使用模型 (預設 gemini-3.1-flash-lite)")
+
     # 執行與日誌設定
     LOG_LEVEL: str = Field(default="INFO", description="日誌等級 (DEBUG, INFO, WARNING, ERROR)")
     CACHE_EXPIRY_HOURS: int = Field(default=8, description="本機行情快取有效小時數")
