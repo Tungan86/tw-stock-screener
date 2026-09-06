@@ -137,7 +137,7 @@ class GoogleSheetsUploader:
             latest_ws.clear()
             latest_ws.update(rows_data, value_input_option="RAW")
             self._style_worksheet(latest_ws, num_rows=len(rows_data), num_cols=len(header))
-            logger.info("已成功同步最新選股清單至 Google Sheet 分頁 [Latest]")
+            logger.info("已成功同步最新選股清單共 %d 檔標的至 Google Sheet 分頁 [Latest]", len(clean_records))
 
             # 4. 歷史歸檔分頁 (e.g. "2026-09-06")
             if archive_date_tab:
@@ -145,7 +145,7 @@ class GoogleSheetsUploader:
                 date_ws.clear()
                 date_ws.update(rows_data, value_input_option="RAW")
                 self._style_worksheet(date_ws, num_rows=len(rows_data), num_cols=len(header))
-                logger.info("已成功歸檔選股清單至歷史分頁 [%s]", date_str)
+                logger.info("已成功歸檔選股清單共 %d 檔標的至歷史分頁 [%s]", len(clean_records), date_str)
 
             # 5. 清理新試算表預設產生的空白分頁 (工作表1 / Sheet1)，確保首頁即為 Latest
             try:
