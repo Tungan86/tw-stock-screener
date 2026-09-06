@@ -10,9 +10,14 @@ __pycache__/
 *.pyc
 
 # 3. 本地產生的歷史數據與報表暫存
+data/cache/
+data/archive/
 data/*.parquet
 data/*.csv
+data/tw_stocks_registry.json
+output/
 *.log
+.pytest_cache/
 
 # 4. 編輯器暫存
 .vscode/

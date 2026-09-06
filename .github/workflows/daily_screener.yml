@@ -1,0 +1,62 @@
+name: 台股大師多頭量化選股與同步 (Daily Stock Screener)
+
+on:
+  schedule:
+    # 台灣時間 (UTC+8) 週一至週五 下午 15:30 執行
+    # 對應 UTC 時間 07:30 (30 7 * * 1-5)
+    - cron: '30 7 * * 1-5'
+  workflow_dispatch: # 支援在 GitHub 網頁上手動點擊「Run workflow」隨時觸發
+
+jobs:
+  screen-and-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 1. 檢出專案代碼 (Checkout repository)
+        uses: actions/checkout@v4
+
+      - name: 2. 設定 Python 環境 (Setup Python)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 3. 安裝依賴套件 (Install dependencies)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 4. 建立服務帳號憑證與環境變數 (Restore Credentials & Env)
+        env:
+          SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+        run: |
+          # 寫入 Google 服務帳號金鑰
+          echo "$SERVICE_ACCOUNT_JSON" > service_account.json
+          
+          # 建立 .env 設定檔
+          echo "SERVICE_ACCOUNT_FILE=service_account.json" > .env
+          echo "GOOGLE_SHEET_ID=$GOOGLE_SHEET_ID" >> .env
+          echo "GOOGLE_SHEET_TITLE=台股大師多頭選股監控表" >> .env
+          echo "MIN_PRICE=10.0" >> .env
+          echo "MIN_VOLUME_SHARES=500000" >> .env
+          echo "MIN_RSI=50.0" >> .env
+          echo "MIN_DIST_52W_LOW_PCT=0.25" >> .env
+          echo "MAX_DIST_52W_HIGH_PCT=0.25" >> .env
+          echo "MA200_TREND_LOOKBACK_DAYS=20" >> .env
+          echo "LOG_LEVEL=INFO" >> .env
+
+      - name: 5. 執行台股大師多頭量化選股 (Run Stock Screener)
+        run: |
+          python main.py
+
+      - name: 6. 歸檔本機產出結果 (Upload Artifacts)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-screener-output-${{ github.run_id }}
+          path: |
+            output/*.csv
+            data/archive/*.parquet
+          retention-days: 14
