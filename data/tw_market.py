@@ -59,16 +59,28 @@ class TWMarketRegistry:
         combined = pd.concat([twse_df, tpex_df], ignore_index=True)
 
         if combined.empty:
-            logger.warning("無法自網路取得最新清單，嘗試載入降級備援清單...")
-            combined = self._fallback_stock_list()
+            # 優先嘗試讀取已存在的快取檔案（即便超過 cache_expiry_days）
+            if self.cache_file.exists():
+                try:
+                    logger.warning("網路同步失敗，降級載入已存在之本機股票清單快取: %s", self.cache_file)
+                    cached_df = pd.read_json(self.cache_file, dtype={"code": str})
+                    if not cached_df.empty:
+                        cached_df["code"] = cached_df["code"].astype(str)
+                        self._stocks = cached_df
+                        return self._stocks
+                except Exception as e:
+                    logger.error("讀取歷史快取失敗: %s", e)
 
-        # 寫入快取
-        try:
-            self.cache_file.parent.mkdir(parents=True, exist_ok=True)
-            combined.to_json(self.cache_file, orient="records", force_ascii=False, indent=2)
-            logger.info("已更新並儲存台股清單快取: 共 %d 檔標的", len(combined))
-        except Exception as e:
-            logger.warning("寫入股票清單快取失敗: %s", e)
+            logger.warning("無法自網路取得最新清單且無快取，載入預設主流股備援清單...")
+            combined = self._fallback_stock_list()
+        else:
+            # 成功取得新資料才更新快取
+            try:
+                self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+                combined.to_json(self.cache_file, orient="records", force_ascii=False, indent=2)
+                logger.info("已更新並儲存台股清單快取: 共 %d 檔標的", len(combined))
+            except Exception as e:
+                logger.warning("寫入股票清單快取失敗: %s", e)
 
         self._stocks = combined
         return self._stocks

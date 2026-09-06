@@ -14,7 +14,6 @@ data/cache/
 data/archive/
 data/*.parquet
 data/*.csv
-data/tw_stocks_registry.json
 output/
 *.log
 .pytest_cache/
