@@ -118,14 +118,24 @@ class GoogleSheetsUploader:
             # 2. 準備乾淨格式化資料
             display_df = self._prepare_display_df(df)
             header = list(display_df.columns)
-            # 替換 NaN 為空字串
-            values = display_df.fillna("").astype(str).values.tolist()
-            rows_data = [header] + values
+            
+            # 保留數值型態，並處理 NaN 與 None
+            clean_records = []
+            for row in display_df.itertuples(index=False):
+                clean_row = []
+                for val in row:
+                    if pd.isna(val):
+                        clean_row.append("")
+                    else:
+                        clean_row.append(val)
+                clean_records.append(clean_row)
 
-            # 3. 更新 "Latest" (最新即時) 工作表
+            rows_data = [header] + clean_records
+
+            # 3. 更新 "Latest" (最新即時) 工作表 (使用 RAW 模式避免 Google 自動移除 0056 前導零)
             latest_ws = self._get_or_create_worksheet(spreadsheet, title="Latest")
             latest_ws.clear()
-            latest_ws.update(rows_data, value_input_option="USER_ENTERED")
+            latest_ws.update(rows_data, value_input_option="RAW")
             self._style_worksheet(latest_ws, num_rows=len(rows_data), num_cols=len(header))
             logger.info("已成功同步最新選股清單至 Google Sheet 分頁 [Latest]")
 
@@ -133,7 +143,7 @@ class GoogleSheetsUploader:
             if archive_date_tab:
                 date_ws = self._get_or_create_worksheet(spreadsheet, title=date_str)
                 date_ws.clear()
-                date_ws.update(rows_data, value_input_option="USER_ENTERED")
+                date_ws.update(rows_data, value_input_option="RAW")
                 self._style_worksheet(date_ws, num_rows=len(rows_data), num_cols=len(header))
                 logger.info("已成功歸檔選股清單至歷史分頁 [%s]", date_str)
 
@@ -179,14 +189,18 @@ class GoogleSheetsUploader:
             return spreadsheet.add_worksheet(title=title, rows=100, cols=30)
 
     def _prepare_display_df(self, df: pd.DataFrame) -> pd.DataFrame:
-        """挑選最關鍵欄位並重命名為中文標題。"""
+        """挑選最關鍵欄位並重命名為中文標題，確保股票代碼補足前導零。"""
         cols = [col for col in COLUMN_MAPPING.keys() if col in df.columns]
         display_df = df[cols].copy()
+        if "code" in display_df.columns:
+            display_df["code"] = display_df["code"].astype(str).apply(
+                lambda x: x.zfill(4) if x.isdigit() and len(x) < 4 else str(x)
+            )
         display_df.rename(columns=COLUMN_MAPPING, inplace=True)
         return display_df
 
     def _style_worksheet(self, worksheet: gspread.Worksheet, num_rows: int, num_cols: int) -> None:
-        """設定標題列深色高質感樣式與凍結首列。"""
+        """設定標題列深色高質感樣式、凍結首列，並將 A 欄設為純文字格式避免前導零消失。"""
         try:
             # 凍結第一列
             worksheet.freeze(rows=1)
@@ -196,6 +210,14 @@ class GoogleSheetsUploader:
                 {
                     "backgroundColor": {"red": 0.12, "green": 0.16, "blue": 0.23},
                     "textFormat": {"bold": True, "foregroundColor": {"red": 1.0, "green": 1.0, "blue": 1.0}},
+                    "horizontalAlignment": "CENTER",
+                },
+            )
+            # 將 A 欄 (股票代碼) 設定為置中純文字格式
+            worksheet.format(
+                "A2:A",
+                {
+                    "numberFormat": {"type": "TEXT"},
                     "horizontalAlignment": "CENTER",
                 },
             )
