@@ -1,0 +1,19 @@
+# 1. 敏感憑證與金鑰（絕對不能上傳）
+service_account.json
+.env
+*.pem
+
+# 2. Python 虛擬環境與快取（避免把幾百 MB 的套件傳上雲端）
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# 3. 本地產生的歷史數據與報表暫存
+data/*.parquet
+data/*.csv
+*.log
+
+# 4. 編輯器暫存
+.vscode/
+.DS_Store
