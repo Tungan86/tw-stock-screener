@@ -65,10 +65,10 @@ jobs:
             data/archive/*.parquet
           retention-days: 14
 
-      - name: 7. 自動提交並推送最新戰情看板至 GitHub Pages (Deploy Docs)
+      - name: 7. 自動提交並推送最新戰情看板與股票清單至 GitHub Pages (Deploy Docs & Sync Registry)
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/
-          git commit -m "chore(docs): 自動更新每日交易員戰情看板 [skip ci]" || echo "No changes to commit"
+          git add docs/ data/tw_stocks_registry.json
+          git commit -m "chore: 自動更新每日交易員戰情看板與股票清單 [skip ci]" || echo "No changes to commit"
           git push origin main

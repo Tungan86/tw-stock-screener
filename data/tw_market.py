@@ -59,22 +59,29 @@ class TWMarketRegistry:
         combined = pd.concat([twse_df, tpex_df], ignore_index=True)
 
         if combined.empty:
-            # 優先嘗試讀取已存在的快取檔案（即便超過 cache_expiry_days）
+            logger.warning("官方 ISIN 網頁同步失敗（可能受海外 IP 限制），嘗試透過 TWSE/TPEx OpenAPI 開放資料接口獲取...")
+            combined = self._fetch_from_openapi()
+
+        # 若成功透過網路獲取到清單，與既有本機快取進行增量合併 (Smart Upsert)
+        if not combined.empty:
             if self.cache_file.exists():
                 try:
-                    logger.warning("網路同步失敗，降級載入已存在之本機股票清單快取: %s", self.cache_file)
                     cached_df = pd.read_json(self.cache_file, dtype={"code": str})
                     if not cached_df.empty:
                         cached_df["code"] = cached_df["code"].astype(str)
-                        self._stocks = cached_df
-                        return self._stocks
+                        # 保留快取中的詳細產業分類，並增量納入最新掛牌股票 (New IPOs)
+                        existing_codes = set(cached_df["code"])
+                        new_stocks = combined[~combined["code"].isin(existing_codes)]
+                        if not new_stocks.empty:
+                            logger.info("偵測到新上市/櫃掛牌標的 %d 檔，自動增量納入: %s", len(new_stocks), new_stocks["code"].tolist())
+                            combined = pd.concat([cached_df, new_stocks], ignore_index=True)
+                        else:
+                            # 無新股票時，以保有詳細產業別的既有清單為主力
+                            combined = cached_df
                 except Exception as e:
-                    logger.error("讀取歷史快取失敗: %s", e)
+                    logger.warning("增量比對快取失敗，直接採用新抓取清單: %s", e)
 
-            logger.warning("無法自網路取得最新清單且無快取，載入預設主流股備援清單...")
-            combined = self._fallback_stock_list()
-        else:
-            # 成功取得新資料才更新快取
+            # 寫入快取
             try:
                 self.cache_file.parent.mkdir(parents=True, exist_ok=True)
                 combined.to_json(self.cache_file, orient="records", force_ascii=False, indent=2)
@@ -82,7 +89,23 @@ class TWMarketRegistry:
             except Exception as e:
                 logger.warning("寫入股票清單快取失敗: %s", e)
 
-        self._stocks = combined
+            self._stocks = combined
+            return self._stocks
+
+        # 網路兩大管道皆不可用時，降級載入既有快取或備援
+        if self.cache_file.exists():
+            try:
+                logger.warning("網路同步失敗，降級載入已存在之本機股票清單快取: %s", self.cache_file)
+                cached_df = pd.read_json(self.cache_file, dtype={"code": str})
+                if not cached_df.empty:
+                    cached_df["code"] = cached_df["code"].astype(str)
+                    self._stocks = cached_df
+                    return self._stocks
+            except Exception as e:
+                logger.error("讀取歷史快取失敗: %s", e)
+
+        logger.warning("無法自網路取得最新清單且無快取，載入預設主流股備援清單...")
+        self._stocks = self._fallback_stock_list()
         return self._stocks
 
     def _is_cache_valid(self) -> bool:
@@ -151,6 +174,61 @@ class TWMarketRegistry:
         except Exception as e:
             logger.error("抓取 %s (%s) 失敗: %s", market, url, e)
             return pd.DataFrame()
+
+    def _fetch_from_openapi(self) -> pd.DataFrame:
+        """透過台灣證交所與櫃買中心之官方 OpenAPI 取得最新上市上櫃股票清單。
+
+        OpenAPI 為政府開放資料平台，全球機房 (含海外雲端 runner) 存取穩定無連線阻擋，
+        可作為海外執行或新股掛牌 (IPO) 的第二重自動探索管道。
+        """
+        records = []
+        pattern = re.compile(r"^\d{4}$")
+
+        # 1. 抓取 TWSE 上市股票 (當日全部成交行情包含全市場最新上市代碼)
+        try:
+            twse_url = "https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL"
+            resp = requests.get(twse_url, timeout=15)
+            if resp.status_code == 200:
+                for item in resp.json():
+                    code = str(item.get("Code", "")).strip()
+                    if pattern.match(code):
+                        records.append({
+                            "code": code,
+                            "name": str(item.get("Name", "")).strip(),
+                            "yf_symbol": f"{code}.TW",
+                            "market": "TWSE",
+                            "industry": "其他",
+                        })
+                logger.info("透過 TWSE OpenAPI 成功獲取 %d 檔上市普通股", len([r for r in records if r["market"] == "TWSE"]))
+        except Exception as e:
+            logger.warning("TWSE OpenAPI 抓取失敗: %s", e)
+
+        # 2. 抓取 TPEx 上櫃股票
+        try:
+            tpex_url = "https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes"
+            resp = requests.get(tpex_url, timeout=15)
+            if resp.status_code == 200:
+                for item in resp.json():
+                    code = str(item.get("SecuritiesCompanyCode", "")).strip()
+                    if pattern.match(code):
+                        records.append({
+                            "code": code,
+                            "name": str(item.get("CompanyName", "")).strip(),
+                            "yf_symbol": f"{code}.TWO",
+                            "market": "TPEx",
+                            "industry": "其他",
+                        })
+                logger.info("透過 TPEx OpenAPI 成功獲取 %d 檔上櫃普通股", len([r for r in records if r["market"] == "TPEx"]))
+        except Exception as e:
+            logger.warning("TPEx OpenAPI 抓取失敗: %s", e)
+
+        if not records:
+            return pd.DataFrame()
+
+        df = pd.DataFrame(records)
+        df.drop_duplicates(subset=["code"], keep="first", inplace=True)
+        logger.info("OpenAPI 合計取得 %d 檔台股上市/上櫃普通股", len(df))
+        return df
 
     def _fallback_stock_list(self) -> pd.DataFrame:
         """當完全無法連外時的基準主流台股清單。"""
