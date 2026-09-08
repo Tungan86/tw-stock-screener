@@ -152,3 +152,15 @@ crontab -e
 ```cron
 30 15 * * 1-5 cd /Users/tongan/股市監控平台 && .venv/bin/python main.py >> logs/cron.log 2>&1
 ```
+
+### 使用 GitHub Actions 雲端自動排程
+本專案已包含 `.github/workflows/daily_screener.yml`，每個交易日（週一至週五）15:30 自動於 GitHub 雲端執行選股並同步。
+
+如需讓 GitHub Actions 具備同步 Google Sheets 與 Gemini AI 功能，請至 GitHub 儲存庫設定：
+1. 前往 GitHub 倉庫頁面 -> **Settings** -> **Secrets and variables** -> **Actions**
+2. 點擊 **New repository secret**，新增以下 Secrets：
+   - `GCP_SERVICE_ACCOUNT_JSON`：將本地 `service_account.json` 的全部文字內容完整複製貼入。
+   - `GOOGLE_SHEET_ID`：Google 試算表 ID（例如 `1uiH3EGecCFxbbZeDa1PCpfg3SUL6POTT0b-rMoQsOWg`）。
+   - `GEMINI_API_KEY`：Google Gemini API 金鑰。
+3. 設定完成後，GitHub Actions 每日定時執行即可自動同步至 Google Sheets 與 GitHub Pages 戰情看板。
+

@@ -245,11 +245,15 @@ def run_pipeline(args: argparse.Namespace) -> int:
                 console.print(f"✅ [bold green]Google Sheets 同步成功:[/bold green] {msg}")
             else:
                 console.print(f"⚠️ [bold yellow]Google Sheets 同步略過或失敗:[/bold yellow] {msg}")
+                if os.environ.get("GITHUB_ACTIONS"):
+                    print(f"::warning title=Google Sheets Sync Incomplete::{msg}")
         else:
             console.print(
                 "[dim]💡 提示: 未配置 service_account.json，已略過 Google Sheets 上傳。"
                 "欲啟用雲端同步請參考 README.md 配置服務帳號金鑰。[/dim]"
             )
+            if os.environ.get("GITHUB_ACTIONS"):
+                print("::warning title=Google Sheets Not Configured::GitHub Secrets 未配置 GCP_SERVICE_ACCOUNT_JSON，已略過 Google Sheets 同步。")
 
     # 7. 本地 Parquet 與 Google Drive 封存
     if not args.no_archive and not results_df.empty:

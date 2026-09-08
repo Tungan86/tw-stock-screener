@@ -36,8 +36,13 @@ jobs:
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          # 寫入 Google 服務帳號金鑰
-          echo "$SERVICE_ACCOUNT_JSON" > service_account.json
+          # 寫入 Google 服務帳號金鑰並驗證
+          if [ -n "$SERVICE_ACCOUNT_JSON" ]; then
+            echo "$SERVICE_ACCOUNT_JSON" > service_account.json
+            python -c "import json; data=json.load(open('service_account.json')); assert 'client_email' in data, 'Invalid key format'; print('✅ Google 服務帳號金鑰載入成功:', data['client_email'])" || echo "::warning title=Invalid Service Account::GCP_SERVICE_ACCOUNT_JSON 解析失敗，請檢查 GitHub Secret 內容是否為完整 JSON"
+          else
+            echo "::warning title=Missing Service Account::GitHub Secrets 未設定 GCP_SERVICE_ACCOUNT_JSON"
+          fi
           
           # 建立 .env 設定檔
           echo "SERVICE_ACCOUNT_FILE=service_account.json" > .env

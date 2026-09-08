@@ -62,8 +62,9 @@ class GoogleSheetsUploader:
         self._client: Optional[gspread.Client] = None
 
     def is_configured(self) -> bool:
-        """檢查 Service Account 金鑰檔案是否存在。"""
-        return Path(self.service_account_file).exists()
+        """檢查 Service Account 金鑰檔案是否存在且內容有效。"""
+        p = Path(self.service_account_file)
+        return p.is_file() and p.stat().st_size > 20
 
     def _get_client(self) -> Optional[gspread.Client]:
         """建立並快取 gspread 用戶端。"""
@@ -71,7 +72,7 @@ class GoogleSheetsUploader:
             return self._client
         if not self.is_configured():
             logger.warning(
-                "未偵測到 Google Service Account 金鑰檔 [%s]，將略過 Google Sheets 上傳。",
+                "未偵測到有效的 Google Service Account 金鑰檔 [%s]，將略過 Google Sheets 上傳。",
                 self.service_account_file,
             )
             return None
