@@ -7,6 +7,7 @@ for Taiwan equities, syncs outputs to Google Sheets, and archives Parquet data.
 import argparse
 from datetime import datetime
 import logging
+import os
 import sys
 from pathlib import Path
 import pandas as pd

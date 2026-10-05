@@ -13900,5 +13900,40 @@
     "yf_symbol":"9962.TWO",
     "market":"TPEx",
     "industry":"鋼鐵工業"
+  },
+  {
+    "code":"7812",
+    "name":"稜研科技*-創",
+    "yf_symbol":"7812.TW",
+    "market":"TWSE",
+    "industry":"通信網路業"
+  },
+  {
+    "code":"2938",
+    "name":"床的世界",
+    "yf_symbol":"2938.TWO",
+    "market":"TPEx",
+    "industry":"居家生活"
+  },
+  {
+    "code":"7825",
+    "name":"和亞智慧",
+    "yf_symbol":"7825.TWO",
+    "market":"TPEx",
+    "industry":"其他電子業"
+  },
+  {
+    "code":"7856",
+    "name":"漢測",
+    "yf_symbol":"7856.TWO",
+    "market":"TPEx",
+    "industry":"半導體業"
+  },
+  {
+    "code":"6604",
+    "name":"儒億",
+    "yf_symbol":"6604.TWO",
+    "market":"TPEx",
+    "industry":"電機機械"
   }
 ]
